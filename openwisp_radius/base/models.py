@@ -1044,6 +1044,13 @@ class AbstractOrganizationRadiusSettings(UUIDModel):
     freeradius_allowed_hosts = models.TextField(
         null=True, blank=True, help_text=_GET_IP_LIST_HELP_TEXT,
     )
+    allowed_mobile_prefixes = models.TextField(
+        null=True,
+        blank=True,
+        help_text=_(
+            'Comma separated list of international mobile prefixes to be restricted.'
+        ),
+    )
 
     class Meta:
         verbose_name = _('Organization radius settings')
@@ -1059,6 +1066,13 @@ class AbstractOrganizationRadiusSettings(UUIDModel):
         if self.freeradius_allowed_hosts:
             addresses = self.freeradius_allowed_hosts.split(',')
         return addresses
+
+    @property
+    def allowed_mobile_prefixes_list(self):
+        mobile_prefixes = []
+        if self.allowed_mobile_prefixes:
+            mobile_prefixes = self.allowed_mobile_prefixes.split(',')
+        return mobile_prefixes
 
     def clean(self):
         if self.sms_verification and not self.sms_sender:
