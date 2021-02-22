@@ -58,6 +58,10 @@ OPTIONAL_FIELD_CHOICES = (
     ('allowed', _('Allowed')),
     ('mandatory', _('Mandatory')),
 )
+IDENTITY_VERIFICATION_CHOICES = (
+    ('', _('No Identity Verification')),
+    ('mobile', _('Mobile Phone')),
+)
 
 RADOP_CHECK_TYPES = (
     ('=', '='),
@@ -154,6 +158,9 @@ _GET_OPTIONAL_FIELDS_HELP_TEXT = _(
 )
 _REGISTRATION_ENABLED_HELP_TEXT = _(
     'Whether the registration API endpoint should be enabled or not'
+)
+_IDENTITY_VERIFICATION_ENABLED_HELP_TEXT = _(
+    'Whether identity verification is required at the time of user registration'
 )
 
 
@@ -1035,6 +1042,12 @@ class AbstractOrganizationRadiusSettings(UUIDModel):
             'phone number via SMS'
         ),
     )
+    needs_identity_verification = models.BooleanField(
+        null=True,
+        blank=True,
+        default=False,
+        help_text=_IDENTITY_VERIFICATION_ENABLED_HELP_TEXT,
+    )
     sms_sender = models.CharField(
         _('Sender'),
         max_length=128,
@@ -1335,3 +1348,19 @@ class AbstractPhoneToken(TimeStampedEditableModel):
                 )
             )
         return token == self.token
+
+
+class AbstractRegisteredUser(models.Model):
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    identity_verification = models.CharField(
+        max_length=64, default=None, blank=True, choices=IDENTITY_VERIFICATION_CHOICES
+    )
+    is_verified = models.BooleanField(default=False)
+
+    class Meta:
+        abstract = True
+        verbose_name = _('Identity Verification')
+        verbose_name_plural = _('Identity Verification')
+
+    def __str__(self):
+        return str(self.user.username)
