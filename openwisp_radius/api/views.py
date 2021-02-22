@@ -71,7 +71,7 @@ from .serializers import (
     ValidatePhoneTokenSerializer,
 )
 from .swagger import ObtainTokenRequest, ObtainTokenResponse, RegisterResponse
-from .utils import ErrorDictMixin
+from .utils import ErrorDictMixin, needs_identity_verification
 
 _TOKEN_AUTH_FAILED = _('Token authentication failed')
 renew_required = app_settings.DISPOSABLE_RADIUS_USER_TOKEN
@@ -234,7 +234,12 @@ class AuthorizeView(GenericAPIView):
         return active user or ``None``
         """
         try:
-            user = auth_backend.get_users(username).filter(is_active=True)[0]
+            filter_kwargs = dict(is_active=True)
+            # get organization settings from id in token to check for verification
+            org_settings = Organization.objects.get(pk=request._auth).radius_settings
+            if org_settings.needs_identity_verification:
+                filter_kwargs['registereduser__is_verified'] = True
+            user = auth_backend.get_users(username).filter(**filter_kwargs)[0]
         except IndexError:
             return None
         # ensure user is member of the authenticated org
@@ -590,9 +595,15 @@ class ObtainAuthTokenView(DispatchOrgMixin, RadiusTokenMixin, BaseObtainAuthToke
         self.update_user_last_login(user)
         context = {'view': self, 'request': request, 'token_login': True}
         serializer = self.serializer_class(instance=token, context=context)
-        response = {'radius_user_token': radius_token.key, 'is_active': user.is_active}
+        response = {
+            'radius_user_token': radius_token.key,
+            'is_verified': user.registereduser.is_verified,
+        }
         response.update(serializer.data)
         status_code = 200 if user.is_active else 401
+        # If identity verification is required, check if user is verified
+        if needs_identity_verification and not user.registereduser.is_verified:
+            status_code = 401
         return Response(response, status=status_code)
 
     def get_user(self, serializer, *args, **kwargs):
@@ -627,7 +638,7 @@ class ValidateAuthTokenView(DispatchOrgMixin, RadiusTokenMixin, CreateAPIView):
                 radius_token = self.get_or_create_radius_token(
                     user, self.organization, renew=renew_required
                 )
-                if not user.is_active:
+                if not user.registereduser.is_verified:
                     phone_token = (
                         PhoneToken.objects.filter(user=user)
                         .order_by('-created')
@@ -644,7 +655,7 @@ class ValidateAuthTokenView(DispatchOrgMixin, RadiusTokenMixin, CreateAPIView):
                     'radius_user_token': radius_token.key,
                     'username': user.username,
                     'email': user.email,
-                    'is_active': user.is_active,
+                    'is_verified': user.registereduser.is_verified,
                     'phone_number': str(phone_number),
                 }
                 self.update_user_last_login(token.user)
@@ -889,6 +900,7 @@ class ValidatePhoneTokenView(DispatchOrgMixin, GenericAPIView):
         if not is_valid:
             return self._error_response(_('Invalid code.'))
         else:
+            user.registereduser.is_verified = True
             user.is_active = True
             user.phone_number = phone_token.phone_number
             user.save()

@@ -26,6 +26,7 @@ from .base.models import (
     _GET_IP_LIST_HELP_TEXT,
     _GET_MOBILE_PREFIX_HELP_TEXT,
     _GET_OPTIONAL_FIELDS_HELP_TEXT,
+    _IDENTITY_VERIFICATION_ENABLED_HELP_TEXT,
     _REGISTRATION_ENABLED_HELP_TEXT,
     OPTIONAL_FIELD_CHOICES,
     _encode_secret,
@@ -44,6 +45,7 @@ PhoneToken = load_model('PhoneToken')
 RadiusGroupCheck = load_model('RadiusGroupCheck')
 RadiusGroupReply = load_model('RadiusGroupReply')
 RadiusUserGroup = load_model('RadiusUserGroup')
+RegisteredUser = load_model('RegisteredUser')
 OrganizationRadiusSettings = load_model('OrganizationRadiusSettings')
 User = get_user_model()
 OPTIONAL_SETTINGS = app_settings.OPTIONAL_REGISTRATION_FIELDS
@@ -497,8 +499,10 @@ class PhoneTokenInline(TimeReadonlyAdminMixin, StackedInline):
     def has_delete_permission(self, request, obj=None):
         return False
 
+class RegisteredUserInline(admin.StackedInline):
+    model = RegisteredUser
 
-UserAdminInline.inlines += [RadiusUserGroupInline, PhoneTokenInline]
+UserAdminInline.inlines += [RadiusUserGroupInline, PhoneTokenInline, RegisteredUserInline]
 
 
 class FallbackFieldMixin(object):
@@ -555,6 +559,18 @@ class AlwaysHasChangedForm(AlwaysHasChangedMixin, forms.ModelForm):
         help_text=_REGISTRATION_ENABLED_HELP_TEXT,
         fallback='',
     )
+    needs_identity_verification = FallbackNullChoiceField(
+        required=False,
+        widget=Select(
+            choices=[
+                ('', _('Default') + f' ({_enabled_disabled_helper()})'),
+                (True, _('Enabled')),
+                (False, _('Disabled')),
+            ]
+        ),
+        help_text=_IDENTITY_VERIFICATION_ENABLED_HELP_TEXT,
+        fallback='',
+    )
     first_name = FallbackChoiceField(
         required=False,
         help_text=_GET_OPTIONAL_FIELDS_HELP_TEXT,
@@ -592,6 +608,7 @@ class OrganizationRadiusSettingsInline(admin.StackedInline):
                     'token',
                     'freeradius_allowed_hosts',
                     'registration_enabled',
+                    'needs_identity_verification',
                     'first_name',
                     'last_name',
                     'birth_date',
