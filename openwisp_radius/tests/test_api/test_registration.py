@@ -1311,7 +1311,7 @@ class TestApi(ApiTokenMixin, FileMixin, BaseTestCase):
         self.assertEqual(RadiusBatch.objects.count(), 0)
         self.assertEqual(User.objects.count(), 0)
         path_csv = os.path.join(
-            os.path.dirname(os.path.abspath(__file__)), 'static', 'test_batch.csv'
+            os.path.dirname(os.path.dirname(__file__)), 'static', 'test_batch.csv'
         )
         with open(path_csv, 'rt') as file:
             data = self._radius_batch_csv_data(csvfile=file)
